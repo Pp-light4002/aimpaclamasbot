@@ -220,22 +220,50 @@ local function isVisible(targetPart)
     return not result
 end
 
--- ESP
+-- NOVO ESP: Snapline + Box suave (usando Drawing API)
+local drawings = {}
+
+local function clearDrawings()
+    for _,v in pairs(drawings) do
+        if typeof(v) == "table" then
+            for _,d in pairs(v) do if d and d.Remove then d:Remove() end end
+        elseif v and v.Remove then v:Remove() end
+    end
+    drawings = {}
+end
+
 local function drawESP()
-    for _, plr in pairs(Players:GetPlayers()) do
+    clearDrawings()
+    for _,plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             if settings.teamCheck and plr.Team == LocalPlayer.Team then continue end
             if settings.wallCheck and not isVisible(plr.Character.HumanoidRootPart) then continue end
-            if not plr.Character:FindFirstChild("ESPBox") then
-                local box = Instance.new("BoxHandleAdornment")
-                box.Adornee = plr.Character.HumanoidRootPart
-                box.Size = Vector3.new(4,6,1)
-                box.Color3 = Color3.fromRGB(255,255,255)
-                box.Transparency = 0.5
-                box.AlwaysOnTop = true
-                box.ZIndex = 5
-                box.Name = "ESPBox"
-                box.Parent = plr.Character
+
+            local hrp = plr.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen and Drawing then
+                -- Snapline: linha do topo central até o player
+                local line = Drawing.new("Line")
+                line.From = Vector2.new(Camera.ViewportSize.X/2, 0)
+                line.To = Vector2.new(pos.X, pos.Y)
+                line.Color = Color3.fromRGB(170,0,255)
+                line.Thickness = 2
+                line.Transparency = 1
+                line.Visible = true
+
+                -- Box suave (leve espaço acima do player)
+                local boxW, boxH = 44, 66
+                local boxYoffset = 14
+                local box = Drawing.new("Square")
+                box.Size = Vector2.new(boxW, boxH)
+                box.Position = Vector2.new(pos.X - boxW/2, pos.Y - boxH/2 - boxYoffset)
+                box.Color = Color3.fromRGB(170,0,255)
+                box.Thickness = 2
+                box.Filled = false
+                box.Transparency = 1
+                box.Visible = true
+
+                drawings[plr] = {line, box}
             end
         end
     end
@@ -291,7 +319,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if settings.esp then drawESP() end
+    if settings.esp then drawESP() else clearDrawings() end
     if settings.hitbox then applyHitbox() end
     if settings.aimbot then
         local target = getClosestTarget()
