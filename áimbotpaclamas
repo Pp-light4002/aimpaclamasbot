@@ -1,0 +1,302 @@
+--[[
+Universal HUB GPT - by ChatGPT
+Compatível com Delta Mobile e KRNL PC
+AimBot + ESP + Hitbox + Interface Móvel + FOV Visual Central
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local settings = {
+    aimbot = false,
+    esp = false,
+    hitbox = false,
+    fovEnabled = false,
+    fov = 100,
+    hitboxSize = 5,
+    teamCheck = false,
+    wallCheck = false
+}
+
+-- Função para criar UI seguro
+local function safeParent()
+    if syn and syn.protect_gui then
+        local gui = Instance.new("ScreenGui")
+        syn.protect_gui(gui)
+        gui.Parent = game.CoreGui
+        return gui
+    elseif gethui then
+        local gui = Instance.new("ScreenGui")
+        gui.Parent = gethui()
+        return gui
+    else
+        local gui = Instance.new("ScreenGui")
+        gui.Parent = game.CoreGui
+        return gui
+    end
+end
+
+local MainGui = safeParent()
+
+-- Mensagem DONOS
+local OwnerMsg = Instance.new("TextLabel", MainGui)
+OwnerMsg.Size = UDim2.new(0, 300, 0, 50)
+OwnerMsg.Position = UDim2.new(0.5, -150, 0, 30)
+OwnerMsg.BackgroundTransparency = 0.4
+OwnerMsg.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
+OwnerMsg.TextColor3 = Color3.fromRGB(170, 0, 255)
+OwnerMsg.Font = Enum.Font.GothamBold
+OwnerMsg.TextSize = 24
+OwnerMsg.Text = "DONOS: PACLAMAS"
+OwnerMsg.Visible = true
+local msgCorner = Instance.new("UICorner", OwnerMsg)
+msgCorner.CornerRadius = UDim.new(1, 0)
+task.spawn(function()
+    wait(4)
+    OwnerMsg.Visible = false
+end)
+
+-- Botão bolinha GPT
+local Ball = Instance.new("TextButton")
+Ball.Size = UDim2.new(0, 60, 0, 60)
+Ball.Position = UDim2.new(0.05, 0, 0.3, 0)
+Ball.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
+Ball.TextColor3 = Color3.fromRGB(170,0,255)
+Ball.Text = "GPT"
+Ball.Font = Enum.Font.GothamBold
+Ball.TextSize = 20
+Ball.Draggable = true
+Ball.Active = true
+Ball.Parent = MainGui
+local BallCorner = Instance.new("UICorner", Ball)
+BallCorner.CornerRadius = UDim.new(1, 0)
+Ball.BorderSizePixel = 0
+
+-- Painel
+local Panel = Instance.new("Frame")
+Panel.Size = UDim2.new(0, 260, 0, 340)
+Panel.Position = UDim2.new(0.15, 0, 0.3, 0)
+Panel.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
+Panel.Visible = false
+Panel.Active = true
+Panel.Draggable = true
+Panel.Parent = MainGui
+local PanelCorner = Instance.new("UICorner", Panel)
+PanelCorner.CornerRadius = UDim.new(0, 12)
+Panel.BorderSizePixel = 0
+
+-- Função criar botão
+local function CreateToggle(name, y, callback)
+    local btn = Instance.new("TextButton", Panel)
+    btn.Size = UDim2.new(1, -20, 0, 34)
+    btn.Position = UDim2.new(0, 10, 0, y)
+    btn.BackgroundColor3 = Color3.fromRGB(60,0,80)
+    btn.TextColor3 = Color3.fromRGB(170,0,255)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 17
+    btn.Text = "[OFF] " .. name
+    btn.BorderSizePixel = 0
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(1, 0)
+    btn.MouseButton1Click:Connect(function()
+        local state = btn.Text:find("%[ON%]") ~= nil
+        if state then
+            btn.Text = "[OFF] " .. name
+        else
+            btn.Text = "[ON] " .. name
+        end
+        callback(not state)
+    end)
+    return btn
+end
+
+-- Função criar slider
+local function CreateSlider(name, y, min, max, default, callback)
+    local label = Instance.new("TextLabel", Panel)
+    label.Size = UDim2.new(1, -20, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, y)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(170,0,255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 15
+    label.Text = name..": "..default
+
+    local sliderBg = Instance.new("Frame", Panel)
+    sliderBg.Size = UDim2.new(1, -20, 0, 10)
+    sliderBg.Position = UDim2.new(0, 10, 0, y+20)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(80,0,100)
+    sliderBg.BorderSizePixel = 0
+    local sliderCorner = Instance.new("UICorner", sliderBg)
+    sliderCorner.CornerRadius = UDim.new(1,0)
+
+    local sliderBtn = Instance.new("TextButton", sliderBg)
+    sliderBtn.Size = UDim2.new(0, 10, 1, 0)
+    sliderBtn.BackgroundColor3 = Color3.fromRGB(170,0,255)
+    sliderBtn.Text = ""
+    sliderBtn.BorderSizePixel = 0
+    local sliderBtnCorner = Instance.new("UICorner", sliderBtn)
+    sliderBtnCorner.CornerRadius = UDim.new(1,0)
+
+    local dragging = false
+    sliderBtn.MouseButton1Down:Connect(function()
+        dragging = true
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local mousePos = UIS:GetMouseLocation().X
+            local rel = math.clamp((mousePos - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+            sliderBtn.Size = UDim2.new(rel, 0, 1, 0)
+            local val = math.floor(min + (max-min)*rel)
+            label.Text = name..": "..val
+            callback(val)
+        end
+    end)
+
+    return label, sliderBg
+end
+
+-- Criar botões e sliders
+local y = 14
+CreateToggle("AimBot", y, function(state) settings.aimbot = state end)
+y = y + 38
+CreateToggle("ESP", y, function(state) settings.esp = state end)
+y = y + 38
+CreateToggle("Hitbox", y, function(state) settings.hitbox = state end)
+y = y + 38
+local fovToggle = CreateToggle("FOV", y, function(state) settings.fovEnabled = state FOVCircle.Visible = state end)
+y = y + 38
+CreateSlider("FOV Size", y, 50, 400, settings.fov, function(val) settings.fov = val end)
+y = y + 38
+CreateSlider("Hitbox Size", y, 2, 10, settings.hitboxSize, function(val) settings.hitboxSize = val end)
+y = y + 38
+CreateToggle("Team Check", y, function(state) settings.teamCheck = state end)
+y = y + 38
+CreateToggle("Wall Check", y, function(state) settings.wallCheck = state end)
+
+Ball.MouseButton1Click:Connect(function()
+    Panel.Visible = not Panel.Visible
+end)
+
+-- Bolinha FOV central na tela (usando Drawing API, se disponível)
+local FOVCircle
+if Drawing then
+    FOVCircle = Drawing.new("Circle")
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircle.Radius = settings.fov
+    FOVCircle.Visible = false
+    FOVCircle.Color = Color3.fromRGB(170,0,255)
+    FOVCircle.Thickness = 2
+    FOVCircle.Filled = false
+    FOVCircle.Transparency = 1
+else
+    -- Fallback para Roblox GUI (menos bonito)
+    FOVCircle = Instance.new("Frame", MainGui)
+    FOVCircle.Size = UDim2.new(0, settings.fov*2, 0, settings.fov*2)
+    FOVCircle.Position = UDim2.new(0.5, -settings.fov, 0.5, -settings.fov)
+    FOVCircle.BackgroundColor3 = Color3.fromRGB(170,0,255)
+    FOVCircle.BackgroundTransparency = 0.7
+    FOVCircle.Visible = false
+    local FOVCorner = Instance.new("UICorner", FOVCircle)
+    FOVCorner.CornerRadius = UDim.new(1,0)
+end
+
+-- Wall Check function
+local function isVisible(targetPart)
+    local origin = Camera.CFrame.Position
+    local direction = (targetPart.Position - origin).Unit * (targetPart.Position - origin).Magnitude
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    return not result
+end
+
+-- ESP
+local function drawESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            if settings.teamCheck and plr.Team == LocalPlayer.Team then continue end
+            if settings.wallCheck and not isVisible(plr.Character.HumanoidRootPart) then continue end
+            if not plr.Character:FindFirstChild("ESPBox") then
+                local box = Instance.new("BoxHandleAdornment")
+                box.Adornee = plr.Character.HumanoidRootPart
+                box.Size = Vector3.new(4,6,1)
+                box.Color3 = Color3.fromRGB(255,255,255)
+                box.Transparency = 0.5
+                box.AlwaysOnTop = true
+                box.ZIndex = 5
+                box.Name = "ESPBox"
+                box.Parent = plr.Character
+            end
+        end
+    end
+end
+
+-- Hitbox
+local function applyHitbox()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            if settings.teamCheck and plr.Team == LocalPlayer.Team then continue end
+            if settings.wallCheck and not isVisible(plr.Character.HumanoidRootPart) then continue end
+            plr.Character.HumanoidRootPart.Size = Vector3.new(settings.hitboxSize, settings.hitboxSize, settings.hitboxSize)
+            plr.Character.HumanoidRootPart.Transparency = 0.7
+        end
+    end
+end
+
+-- Aimbot
+local function getClosestTarget()
+    local closest = nil
+    local shortest = settings.fov
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            if settings.teamCheck and plr.Team == LocalPlayer.Team then continue end
+            if settings.wallCheck and not isVisible(plr.Character.Head) then continue end
+            local pos, visible = Camera:WorldToViewportPoint(plr.Character.Head.Position)
+            if visible then
+                local mag = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                if settings.fovEnabled and mag > settings.fov then continue end
+                if mag < shortest then
+                    shortest = mag
+                    closest = plr
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    -- FOVCircle update
+    if FOVCircle then
+        local fovSize = settings.fov
+        if Drawing and FOVCircle.Radius then
+            FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            FOVCircle.Radius = fovSize
+            FOVCircle.Visible = settings.fovEnabled
+        else
+            FOVCircle.Size = UDim2.new(0, fovSize*2, 0, fovSize*2)
+            FOVCircle.Position = UDim2.new(0.5, -fovSize, 0.5, -fovSize)
+            FOVCircle.Visible = settings.fovEnabled
+        end
+    end
+
+    if settings.esp then drawESP() end
+    if settings.hitbox then applyHitbox() end
+    if settings.aimbot then
+        local target = getClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.Head.Position)
+        end
+    end
+end)
